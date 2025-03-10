@@ -1,20 +1,22 @@
 package com.javarush.telegram;
 
-import com.javarush.telegram.ChatGPTService;
-import com.javarush.telegram.DialogMode;
-import com.javarush.telegram.MultiSessionTelegramBot;
-import com.javarush.telegram.UserInfo;
+import static com.javarush.telegram.Util.fetchMainMenuData;
+
+import io.github.cdimascio.dotenv.Dotenv;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
-import org.telegram.telegrambots.meta.api.objects.*;
+import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 
-import java.util.ArrayList;
-
 public class TinderBoltApp extends MultiSessionTelegramBot {
-    public static final String TELEGRAM_BOT_NAME = "bot-name"; //TODO: додай ім'я бота в лапках
-    public static final String TELEGRAM_BOT_TOKEN = "bot-token"; //TODO: додай токен бота в лапках
-    public static final String OPEN_AI_TOKEN = "chat-gpt-token"; //TODO: додай токен ChatGPT у лапках
+    private static final Dotenv dotenv = Dotenv.load();
+
+    public static final String TELEGRAM_BOT_NAME = dotenv.get("TELEGRAM_BOT_NAME");
+    public static final String TELEGRAM_BOT_TOKEN = dotenv.get("TELEGRAM_BOT_TOKEN");
+    public static final String OPEN_AI_TOKEN = dotenv.get("OPEN_AI_TOKEN");
+
+    public DialogMode dialogMode = DialogMode.MAIN;
+    public ChatGPTService gptService = new ChatGPTService(OPEN_AI_TOKEN);
 
     public TinderBoltApp() {
         super(TELEGRAM_BOT_NAME, TELEGRAM_BOT_TOKEN);
@@ -22,8 +24,31 @@ public class TinderBoltApp extends MultiSessionTelegramBot {
 
     @Override
     public void onUpdateEventReceived(Update update) {
-        //TODO: основний функціонал бота будемо писати тут
+        String message = getMessageText();
 
+        if (message.equals("/start")) {
+            dialogMode = DialogMode.MAIN;
+            String menu = loadMessage("main");
+            showMainMenu(fetchMainMenuData(menu));
+            sendTextMessage(menu);
+            sendPhotoMessage("main");
+            return;
+        }
+
+        if (message.equals("/gpt")) {
+            dialogMode = DialogMode.GPT;
+            String gptMessage = loadMessage("gpt");
+            sendTextMessage(gptMessage);
+            sendPhotoMessage("gpt");
+            return;
+        }
+
+        if (dialogMode == DialogMode.GPT) {
+            String prompt = loadPrompt("gpt");
+            String string = gptService.sendMessage(prompt, message);
+            sendTextMessage(string);
+            return;
+        }
     }
 
     public static void main(String[] args) throws TelegramApiException {
